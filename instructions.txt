@@ -1,4 +1,5 @@
 Pomodoro Timer
 
-- I need a window (we can use sdl2)
-- a Timer
+- [x] I need a window (we can use sdl2)
+- [ ] Change colour of the window
+- [ ] a Timer
