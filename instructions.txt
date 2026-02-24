@@ -2,7 +2,10 @@ Pomodoro Timer
 
 - [x] I need a window (we can use sdl2)
 - [x] Change colour of the window
-- [] Add a button
-- [] Connect the button to the Timer
-- [] Make the Time start at 25:00 and decrement
-- [ ] a Timer
+- [x] Add a button
+- [x] Connect the button to the Timer
+- [x] Make the Time start at 25:00 and decrement
+- [] Make little clickable tabs at the top when will change the timer from pomodoro to short break and long break
+- [] Give short break and long break different times
+- [] Make the timer pause when you change tabs
+- [] Give the buttons borders to show that they look like buttons

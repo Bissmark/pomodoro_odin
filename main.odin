@@ -16,6 +16,12 @@ BUTTON_SIZE :: 40
 BUTTON_TEXT :: "START"
 BUTTON_COLOR :: sdl.Color{255, 0, 255, 255}
 
+TABS_SIZE :: 15
+POMODORO_TEXT :: "Pomodoro"
+SHORT_BREAK_TEXT :: "Short Break"
+LONG_BREAK_TEXT :: "Long Break"
+
+
 Button :: struct {
     x, y: f32,
     width, height: f32,
@@ -27,6 +33,13 @@ Game :: struct {
     window: ^sdl.Window,
     renderer: ^sdl.Renderer,
     event: sdl.Event,
+
+    pomodoro_rect: sdl.Rect,
+    pomodoro_image: ^sdl.Texture,
+    short_break_rect: sdl.Rect,
+    short_break_image: ^sdl.Texture,
+    long_break_rect: sdl.Rect,
+    long_break_image: ^sdl.Texture,
 
     timer_rect: sdl.Rect,
     timer_image: ^sdl.Texture,
@@ -83,7 +96,58 @@ update_timer_texture :: proc(g: ^Game) {
     sdl.DestroySurface(font_surf)
 }
 
-load_media :: proc(g: ^Game) -> bool {
+tabs :: proc(g: ^Game) -> bool {
+    font := ttf.OpenFont("fonts/ShareTechMono-Regular.ttf", TABS_SIZE)
+    if font == nil {
+        log.error("Failed to load font:", sdl.GetError())
+        return false
+    }
+
+    font_pomodoro_surf := ttf.RenderText_Blended(font, POMODORO_TEXT, 0, FONT_COLOR)
+    if font_pomodoro_surf == nil {
+        log.error("Failed to render text:", sdl.GetError())
+        return false
+    }
+
+    g.pomodoro_rect.w = font_pomodoro_surf.w
+    g.pomodoro_rect.h = font_pomodoro_surf.h
+    g.pomodoro_rect.x = SCREEN_WIDTH / 2 - 150
+    g.pomodoro_rect.y = SCREEN_HEIGHT / 2 - 120
+
+    font_short_break_surf := ttf.RenderText_Blended(font, SHORT_BREAK_TEXT, 0, FONT_COLOR)
+    if font_pomodoro_surf == nil {
+        log.error("Failed to render text:", sdl.GetError())
+        return false
+    }
+
+    g.short_break_rect.w = font_short_break_surf.w
+    g.short_break_rect.h = font_short_break_surf.h
+    g.short_break_rect.x = SCREEN_WIDTH / 2 - 50
+    g.short_break_rect.y = SCREEN_HEIGHT / 2 - 120
+
+    font_long_break_surf := ttf.RenderText_Blended(font, LONG_BREAK_TEXT, 0, FONT_COLOR)
+    if font_pomodoro_surf == nil {
+        log.error("Failed to render text:", sdl.GetError())
+        return false
+    }
+
+    g.long_break_rect.w = font_long_break_surf.w
+    g.long_break_rect.h = font_long_break_surf.h
+    g.long_break_rect.x = SCREEN_WIDTH / 2 + 70
+    g.long_break_rect.y = SCREEN_HEIGHT / 2 - 120
+    ttf.CloseFont(font)
+
+    g.pomodoro_image = sdl.CreateTextureFromSurface(g.renderer, font_pomodoro_surf)
+    sdl.DestroySurface(font_pomodoro_surf)
+    g.short_break_image = sdl.CreateTextureFromSurface(g.renderer, font_short_break_surf)
+    sdl.DestroySurface(font_short_break_surf)
+    g.long_break_image = sdl.CreateTextureFromSurface(g.renderer, font_long_break_surf)
+    sdl.DestroySurface(font_long_break_surf)
+
+    return true
+}
+
+timer :: proc(g: ^Game) -> bool {
     font := ttf.OpenFont("fonts/ShareTechMono-Regular.ttf", FONT_SIZE)
     if font == nil {
         log.error("Failed to load font:", sdl.GetError())
@@ -159,10 +223,35 @@ main_loop :: proc(g: ^Game) {
                     mx := g.event.button.x
                     my := g.event.button.y
                     active_rect := g.start_rect if !g.running else g.pause_rect
+
                     if mx >= f32(active_rect.x) && mx <= f32(active_rect.x + active_rect.w) &&
                     my >= f32(active_rect.y) && my <= f32(active_rect.y + active_rect.h) {
                         g.running = !g.running
                         if g.running do g.last_tick = sdl.GetTicks()
+                    }
+
+                    // pomodoro tab - 25 mins
+                    if mx >= f32(g.pomodoro_rect.x) && mx <= f32(g.pomodoro_rect.x + g.pomodoro_rect.w) &&
+                    my >= f32(g.pomodoro_rect.y) && my <= f32(g.pomodoro_rect.y + g.pomodoro_rect.h) {
+                        g.running = false
+                        g.seconds_left = 25 * 60
+                        update_timer_texture(g)
+                    }
+
+                    // short break tab - 5 mins
+                    if mx >= f32(g.short_break_rect.x) && mx <= f32(g.short_break_rect.x + g.short_break_rect.w) &&
+                    my >= f32(g.short_break_rect.y) && my <= f32(g.short_break_rect.y + g.short_break_rect.h) {
+                        g.running = false
+                        g.seconds_left = 5 * 60
+                        update_timer_texture(g)
+                    }
+
+                    // long break tab - 15 mins
+                    if mx >= f32(g.long_break_rect.x) && mx <= f32(g.long_break_rect.x + g.long_break_rect.w) &&
+                    my >= f32(g.long_break_rect.y) && my <= f32(g.long_break_rect.y + g.long_break_rect.h) {
+                        g.running = false
+                        g.seconds_left = 15 * 60
+                        update_timer_texture(g)
                     }
             }
         }
@@ -194,6 +283,31 @@ main_loop :: proc(g: ^Game) {
             h = f32(btn_rect.h),
         }
         sdl.RenderTexture(g.renderer, btn_image, nil, &dst_start)
+
+        pomodoro_button := sdl.FRect{
+            x = f32(g.pomodoro_rect.x),
+            y = f32(g.pomodoro_rect.y),
+            w = f32(g.pomodoro_rect.w),
+            h = f32(g.pomodoro_rect.h),
+        }
+        sdl.RenderTexture(g.renderer, g.pomodoro_image, nil, &pomodoro_button)
+        
+        short_break_button := sdl.FRect{
+            x = f32(g.short_break_rect.x),
+            y = f32(g.short_break_rect.y),
+            w = f32(g.short_break_rect.w),
+            h = f32(g.short_break_rect.h),
+        }
+        sdl.RenderTexture(g.renderer, g.short_break_image, nil, &short_break_button)
+        
+        long_break_button := sdl.FRect{
+            x = f32(g.long_break_rect.x),
+            y = f32(g.long_break_rect.y),
+            w = f32(g.long_break_rect.w),
+            h = f32(g.long_break_rect.h),
+        }
+        sdl.RenderTexture(g.renderer, g.long_break_image, nil, &long_break_button)
+
         sdl.RenderPresent(g.renderer)
 
         sdl.Delay(16)  // ~60fps cap
@@ -206,7 +320,8 @@ main :: proc() {
     game: Game
 
     if !initialize(&game) do return
-    if !load_media(&game) do return
+    if !tabs(&game) do return
+    if !timer(&game) do return
     if !button_start(&game) do return
     main_loop(&game)
 
