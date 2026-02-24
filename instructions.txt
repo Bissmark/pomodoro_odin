@@ -1,5 +1,8 @@
 Pomodoro Timer
 
 - [x] I need a window (we can use sdl2)
-- [ ] Change colour of the window
+- [x] Change colour of the window
+- [] Add a button
+- [] Connect the button to the Timer
+- [] Make the Time start at 25:00 and decrement
 - [ ] a Timer
