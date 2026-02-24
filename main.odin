@@ -14,7 +14,7 @@ FONT_COLOR :: sdl.Color{255, 255, 255, 255}
 
 BUTTON_SIZE :: 40
 BUTTON_TEXT :: "START"
-BUTTON_COLOR :: sdl.Color{255, 0, 255, 255}
+BUTTON_COLOR :: sdl.Color{0, 0, 0, 255}
 
 TABS_SIZE :: 15
 POMODORO_TEXT :: "Pomodoro"
@@ -50,6 +50,8 @@ Game :: struct {
     pause_rect: sdl.Rect,
     pause_image: ^sdl.Texture,
 
+    current_mode: int,
+
     running:      bool,
     seconds_left: int,
     last_tick:    u64,
@@ -58,6 +60,7 @@ Game :: struct {
 initialize :: proc(g: ^Game) -> bool {
     ttf.Init()
     g.seconds_left = 1500
+    g.current_mode = 0
 
     g.window = sdl.CreateWindow("Pomodoro", SCREEN_WIDTH, SCREEN_HEIGHT, {.BORDERLESS})
     if g.window == nil {
@@ -96,6 +99,23 @@ update_timer_texture :: proc(g: ^Game) {
     sdl.DestroySurface(font_surf)
 }
 
+draw_filled_rect :: proc(g: ^Game, rect: sdl.Rect, highlighted: bool) {
+    frect := sdl.FRect{
+        x = f32(rect.x) - 10,
+        y = f32(rect.y) - 8,
+        w = f32(rect.w) + 20,
+        h = f32(rect.h) + 16,
+    }
+
+    if highlighted {
+        sdl.SetRenderDrawColor(g.renderer, 200, 200, 200, 255)
+    } else {
+        sdl.SetRenderDrawColor(g.renderer, 255, 255, 255, 255)
+    }
+    sdl.RenderFillRect(g.renderer, &frect)
+    sdl.SetRenderDrawColor(g.renderer, 0, 0, 0, 255)
+}
+
 tabs :: proc(g: ^Game) -> bool {
     font := ttf.OpenFont("fonts/ShareTechMono-Regular.ttf", TABS_SIZE)
     if font == nil {
@@ -103,7 +123,7 @@ tabs :: proc(g: ^Game) -> bool {
         return false
     }
 
-    font_pomodoro_surf := ttf.RenderText_Blended(font, POMODORO_TEXT, 0, FONT_COLOR)
+    font_pomodoro_surf := ttf.RenderText_Blended(font, POMODORO_TEXT, 0, BUTTON_COLOR)
     if font_pomodoro_surf == nil {
         log.error("Failed to render text:", sdl.GetError())
         return false
@@ -114,7 +134,7 @@ tabs :: proc(g: ^Game) -> bool {
     g.pomodoro_rect.x = SCREEN_WIDTH / 2 - 150
     g.pomodoro_rect.y = SCREEN_HEIGHT / 2 - 120
 
-    font_short_break_surf := ttf.RenderText_Blended(font, SHORT_BREAK_TEXT, 0, FONT_COLOR)
+    font_short_break_surf := ttf.RenderText_Blended(font, SHORT_BREAK_TEXT, 0, BUTTON_COLOR)
     if font_pomodoro_surf == nil {
         log.error("Failed to render text:", sdl.GetError())
         return false
@@ -125,7 +145,7 @@ tabs :: proc(g: ^Game) -> bool {
     g.short_break_rect.x = SCREEN_WIDTH / 2 - 50
     g.short_break_rect.y = SCREEN_HEIGHT / 2 - 120
 
-    font_long_break_surf := ttf.RenderText_Blended(font, LONG_BREAK_TEXT, 0, FONT_COLOR)
+    font_long_break_surf := ttf.RenderText_Blended(font, LONG_BREAK_TEXT, 0, BUTTON_COLOR)
     if font_pomodoro_surf == nil {
         log.error("Failed to render text:", sdl.GetError())
         return false
@@ -235,6 +255,7 @@ main_loop :: proc(g: ^Game) {
                     my >= f32(g.pomodoro_rect.y) && my <= f32(g.pomodoro_rect.y + g.pomodoro_rect.h) {
                         g.running = false
                         g.seconds_left = 25 * 60
+                        g.current_mode = 0
                         update_timer_texture(g)
                     }
 
@@ -243,6 +264,7 @@ main_loop :: proc(g: ^Game) {
                     my >= f32(g.short_break_rect.y) && my <= f32(g.short_break_rect.y + g.short_break_rect.h) {
                         g.running = false
                         g.seconds_left = 5 * 60
+                        g.current_mode = 1
                         update_timer_texture(g)
                     }
 
@@ -251,19 +273,28 @@ main_loop :: proc(g: ^Game) {
                     my >= f32(g.long_break_rect.y) && my <= f32(g.long_break_rect.y + g.long_break_rect.h) {
                         g.running = false
                         g.seconds_left = 15 * 60
+                        g.current_mode = 2
                         update_timer_texture(g)
                     }
             }
         }
 
         if g.running {
-                now := sdl.GetTicks()
-                if now - g.last_tick >= 1000 {
-                    g.last_tick = now
-                    g.seconds_left -= 1
+            now := sdl.GetTicks()
+            if now - g.last_tick >= 1000 {
+                g.last_tick = now
+                g.seconds_left -= 1
+
+                if g.seconds_left <= 0 {
+                    g.running = false
+                    g.seconds_left = 5 * 60  // switch to short break
+                    g.current_mode = 1
+                    update_timer_texture(g)
+                } else {
                     update_timer_texture(g)
                 }
             }
+        }
         sdl.RenderClear(g.renderer)
 
         dst_timer := sdl.FRect{
@@ -282,6 +313,7 @@ main_loop :: proc(g: ^Game) {
             w = f32(btn_rect.w),
             h = f32(btn_rect.h),
         }
+        draw_filled_rect(g, btn_rect, false)
         sdl.RenderTexture(g.renderer, btn_image, nil, &dst_start)
 
         pomodoro_button := sdl.FRect{
@@ -290,6 +322,7 @@ main_loop :: proc(g: ^Game) {
             w = f32(g.pomodoro_rect.w),
             h = f32(g.pomodoro_rect.h),
         }
+        draw_filled_rect(g, g.pomodoro_rect, g.current_mode == 0)
         sdl.RenderTexture(g.renderer, g.pomodoro_image, nil, &pomodoro_button)
         
         short_break_button := sdl.FRect{
@@ -298,6 +331,7 @@ main_loop :: proc(g: ^Game) {
             w = f32(g.short_break_rect.w),
             h = f32(g.short_break_rect.h),
         }
+        draw_filled_rect(g, g.short_break_rect, g.current_mode == 1)
         sdl.RenderTexture(g.renderer, g.short_break_image, nil, &short_break_button)
         
         long_break_button := sdl.FRect{
@@ -306,6 +340,7 @@ main_loop :: proc(g: ^Game) {
             w = f32(g.long_break_rect.w),
             h = f32(g.long_break_rect.h),
         }
+        draw_filled_rect(g, g.long_break_rect, g.current_mode == 2)
         sdl.RenderTexture(g.renderer, g.long_break_image, nil, &long_break_button)
 
         sdl.RenderPresent(g.renderer)
